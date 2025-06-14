@@ -2,15 +2,13 @@ import streamlit as st
 import requests
 from PIL import Image, ImageDraw, ImageFont
 import io
-import base64
 
-# === Konfigurasi Roboflow ===
 ROBOFLOW_API_KEY = "JhoVl7G0GZ41MBBBr0eK"
 PROJECT_NAME = "ringworm-detection"
 MODEL_VERSION = "2"
 ROBOFLOW_URL = f"https://detect.roboflow.com/{PROJECT_NAME}/{MODEL_VERSION}?api_key={ROBOFLOW_API_KEY}"
 
-st.title("Ringworm Detection with Instance Segmentation")
+st.title("Ringworm Detection with Instance Segmentation (Polygon Overlay)")
 
 uploaded_file = st.file_uploader("Upload gambar kulit...", type=["jpg", "jpeg", "png"])
 
@@ -29,28 +27,26 @@ if uploaded_file is not None:
         if response.status_code == 200:
             result = response.json()
             predictions = result.get("predictions", [])
+            st.subheader("Prediksi:")
 
             if not predictions:
-                st.subheader("Prediksi:")
                 st.write("Tidak ada objek terdeteksi.")
             else:
-                # Salin gambar untuk overlay mask
-                image_with_mask = image.copy()
+                image_with_polygon = image.copy()
+                draw = ImageDraw.Draw(image_with_polygon, 'RGBA')
 
                 for i, pred in enumerate(predictions):
                     st.markdown(f"**Deteksi #{i+1} - {pred['class']}**")
                     st.write(f"Confidence: {pred['confidence']:.2f}")
-                    st.write(f"Box: x={pred['x']}, y={pred['y']}, w={pred['width']}, h={pred['height']}")
 
-                    # Ambil mask base64
-                    if "mask" in pred:
-                        mask_data = pred["mask"].split(",")[1]  # Hilangkan 'data:image/png;base64,'
-                        mask_image = Image.open(io.BytesIO(base64.b64decode(mask_data))).convert("L")
+                    if "points" in pred:
+                        # Ambil list koordinat titik polygon
+                        polygon = [(point['x'], point['y']) for point in pred['points']]
+                        # Gambar polygon dengan warna transparan
+                        draw.polygon(polygon, fill=(255, 0, 0, 80), outline=(255, 0, 0, 180))
+                    else:
+                        st.warning("Tidak ada data 'points' untuk prediksi ini.")
 
-                        # Buat RGBA mask merah transparan
-                        red_mask = Image.new("RGBA", mask_image.size, (255, 0, 0, 100))
-                        image_with_mask.paste(red_mask, (0, 0), mask_image)
-
-                st.image(image_with_mask, caption="Hasil Segmentasi", use_column_width=True)
+                st.image(image_with_polygon, caption="Hasil Segmentasi (Polygon)", use_column_width=True)
         else:
             st.error(f"Terjadi kesalahan: {response.text}")
