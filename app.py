@@ -1,6 +1,6 @@
 import streamlit as st
 import requests
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 import io
 
 ROBOFLOW_API_KEY = "JhoVl7G0GZ41MBBBr0eK"
@@ -21,7 +21,7 @@ if uploaded_file is not None:
         response = requests.post(
             ROBOFLOW_URL,
             files={"file": image_bytes},
-            data={"confidence": 40, "overlap": 30}
+            data={"confidence": 20, "overlap": 30}
         )
 
         if response.status_code == 200:
@@ -40,9 +40,12 @@ if uploaded_file is not None:
                     st.write(f"Confidence: {pred['confidence']:.2f}")
 
                     if "points" in pred:
-                        # Ambil list koordinat titik polygon
-                        polygon = [(point['x'], point['y']) for point in pred['points']]
-                        # Gambar polygon dengan warna transparan
+                        polygon = []
+                        for point in pred['points']:
+                            # Scaling jika koordinat masih dalam rasio 0-1
+                            x = point['x'] * image.width if point['x'] <= 1 else point['x']
+                            y = point['y'] * image.height if point['y'] <= 1 else point['y']
+                            polygon.append((x, y))
                         draw.polygon(polygon, fill=(255, 0, 0, 80), outline=(255, 0, 0, 180))
                     else:
                         st.warning("Tidak ada data 'points' untuk prediksi ini.")
