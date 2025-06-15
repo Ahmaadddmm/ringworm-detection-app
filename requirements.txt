@@ -6,3 +6,4 @@ numpy
 scikit-image
 requests
 opencv-python-headless
+google-generativeai
