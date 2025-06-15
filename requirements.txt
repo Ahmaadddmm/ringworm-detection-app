@@ -5,4 +5,4 @@ Pillow
 numpy
 scikit-image
 requests
-opencv-python
+opencv-python-headless
