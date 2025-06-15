@@ -8,7 +8,7 @@ import google.generativeai as genai
 from skimage import measure
 
 # === KONFIGURASI GEMINI API ===
-genai.configure(api_key=st.secrets["AIzaSyDw_4Ae1E5sPM4av6xs_1Av42g-h9Jrs_Q"])
+genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
 def tanya_gemini(pertanyaan):
     model = genai.GenerativeModel('gemini-pro')
