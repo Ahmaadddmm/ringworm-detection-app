@@ -1,3 +1,6 @@
 streamlit
-requests
-pillow
+torch
+ultralytics
+Pillow
+numpy
+scikit-image
