@@ -1,55 +1,51 @@
 import streamlit as st
-import requests
 from PIL import Image, ImageDraw
+import torch
+from ultralytics import YOLO
+import numpy as np
 import io
 
-ROBOFLOW_API_KEY = "JhoVl7G0GZ41MBBBr0eK"
-PROJECT_NAME = "ringworm-detection"
-MODEL_VERSION = "2"
-ROBOFLOW_URL = f"https://detect.roboflow.com/{PROJECT_NAME}/{MODEL_VERSION}?api_key={ROBOFLOW_API_KEY}"
+# Load model lokal
+model = YOLO("my_model.pt")
 
-st.title("Ringworm Detection with Instance Segmentation (Polygon Overlay)")
+st.title("Ringworm Detection (Lokal Model - YOLO)")
 
 uploaded_file = st.file_uploader("Upload gambar kulit...", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
     image_bytes = uploaded_file.read()
-    image = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
+    image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     st.image(image, caption="Gambar Asli", use_column_width=True)
 
     with st.spinner("Memproses gambar..."):
-        response = requests.post(
-            ROBOFLOW_URL,
-            files={"file": image_bytes},
-            data={"confidence": 20, "overlap": 30}
-        )
+        # Jalankan prediksi
+        results = model(image)
 
-        if response.status_code == 200:
-            result = response.json()
-            predictions = result.get("predictions", [])
-            st.subheader("Prediksi:")
+        # Ambil result pertama (karena YOLO bisa batch)
+        result = results[0]
 
-            if not predictions:
-                st.write("Tidak ada objek terdeteksi.")
-            else:
-                image_with_polygon = image.copy()
-                draw = ImageDraw.Draw(image_with_polygon, 'RGBA')
-
-                for i, pred in enumerate(predictions):
-                    st.markdown(f"**Deteksi #{i+1} - {pred['class']}**")
-                    st.write(f"Confidence: {pred['confidence']:.2f}")
-
-                    if "points" in pred:
-                        polygon = []
-                        for point in pred['points']:
-                            # Scaling jika koordinat masih dalam rasio 0-1
-                            x = point['x'] * image.width if point['x'] <= 1 else point['x']
-                            y = point['y'] * image.height if point['y'] <= 1 else point['y']
-                            polygon.append((x, y))
-                        draw.polygon(polygon, fill=(255, 0, 0, 80), outline=(255, 0, 0, 180))
-                    else:
-                        st.warning("Tidak ada data 'points' untuk prediksi ini.")
-
-                st.image(image_with_polygon, caption="Hasil Segmentasi (Polygon)", use_column_width=True)
+        if result.masks is None:
+            st.write("Tidak ada objek terdeteksi.")
         else:
-            st.error(f"Terjadi kesalahan: {response.text}")
+            draw_image = image.copy().convert("RGBA")
+            draw = ImageDraw.Draw(draw_image, 'RGBA')
+
+            for i, (cls_id, conf, mask) in enumerate(zip(result.boxes.cls, result.boxes.conf, result.masks.data)):
+                class_name = model.names[int(cls_id)]
+                st.markdown(f"**Deteksi #{i+1} - {class_name}**")
+                st.write(f"Confidence: {conf:.2f}")
+
+                # Mask to polygon (approximate)
+                mask_np = mask.cpu().numpy().astype(np.uint8) * 255
+                mask_img = Image.fromarray(mask_np).resize(image.size)
+                mask_data = np.array(mask_img)
+
+                # Cari polygon dari mask
+                from skimage import measure
+                contours = measure.find_contours(mask_data, 0.5)
+
+                for contour in contours:
+                    polygon = [(x[1], x[0]) for x in contour]
+                    draw.polygon(polygon, fill=(255, 0, 0, 80), outline=(255, 0, 0, 180))
+
+            st.image(draw_image, caption="Hasil Segmentasi (Model Lokal)", use_column_width=True)
